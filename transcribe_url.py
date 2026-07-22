@@ -22,6 +22,19 @@ def format_ts(seconds):
     return f"{m}:{s:02d}"
 
 
+def compute_frame_timestamps(duration, dense_window=3.0, dense_step=0.5, sparse_step=2.0):
+    timestamps = []
+    t = 0.0
+    while t < min(dense_window, duration):
+        timestamps.append(round(t, 2))
+        t += dense_step
+    t = dense_window
+    while t < duration:
+        timestamps.append(round(t, 2))
+        t += sparse_step
+    return timestamps
+
+
 def download_media(url, out_dir, browser=None):
     outtmpl = str(Path(out_dir) / "%(id)s.%(ext)s")
     opts = {
