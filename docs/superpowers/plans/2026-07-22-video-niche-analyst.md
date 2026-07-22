@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add frame extraction to `transcribe_url.py`, then a Claude Code skill (`.claude/skills/video-niche-analyst/`) that runs a 9-persona expert council over a batch of short-form videos and files deduped, non-generic findings into a new `Content Framework/` knowledge base in the Tools vault.
+**Goal:** Add frame extraction to `transcribe_url.py`, then a Claude Code skill (`.claude/skills/video-niche-analyst/`) that runs a 9-persona expert council over a batch of short-form videos and files deduped, non-generic findings into a new, fully-diagrammed `Content Framework/` knowledge base in the Tools vault.
 
 **Architecture:** `transcribe_url.py` gains a `--frames <dir>` flag (dense sampling of the hook window + sparse sampling after, plus a real-thumbnail fallback via yt-dlp). The new skill's `SKILL.md` walks a human/Claude through running that flag per video, building a video-log sprint file in the vault, and invoking the Workflow tool with `council-workflow.js` — which fans 8 personas out per video in parallel, files results through a per-finding dedup-against-vault agent, then runs one whole-sprint "Adaptive & Learning" audit.
 
@@ -397,7 +397,11 @@ git commit -m "feat: add --frames flag with real-thumbnail fallback and graceful
 
 The vault at `/Users/r/Documents/Tools:skills/Tools/` is **not** a git repo (confirmed during design) — no git steps in this task, just file creation. None of these files are read by any existing Dataview index (all indexes are scoped `FROM "Catalog" OR "My Projects"`), so no risk of breaking `Indexes/*`.
 
+Every file in this section gets an Excalidraw diagram, matching the vault's existing per-note diagram convention (`System/Scripts/generate_diagram.py`) — one detailed system-overview diagram for the README, one lifecycle diagram for the Video Log, and one filing-flow diagram per category file (9), each illustrated with a concrete example finding rather than a generic template repeated nine times.
+
 **Files:**
+- Create: `Tools/System/Scripts/specs/content-framework-overview.json` and 10 sibling spec files (see Step 1)
+- Create: `Tools/Content Framework/Diagrams/content-framework-overview.excalidraw.md` and 10 sibling diagram files (generated in Step 2)
 - Create: `Tools/Content Framework/README.md`
 - Create: `Tools/Content Framework/Hooks.md`
 - Create: `Tools/Content Framework/Editing Tricks.md`
@@ -413,7 +417,294 @@ The vault at `/Users/r/Documents/Tools:skills/Tools/` is **not** a git repo (con
 
 (`Tools/` below is shorthand for `/Users/r/Documents/Tools:skills/Tools/`.)
 
-- [ ] **Step 1: Write `Content Framework/README.md`**
+- [ ] **Step 1: Write the 11 diagram specs**
+
+`Tools/System/Scripts/specs/content-framework-overview.json` — the big system diagram, embedded in the README:
+
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Video sources\n(URLs or local files)", "type": "trigger", "col": 0, "row": 5},
+    {"id": "b", "label": "transcribe_url.py:\ndownload + transcribe\n+ extract frames", "type": "process", "col": 1, "row": 5},
+    {"id": "c", "label": "Council: 8 personas\nreview each video\n(parallel)", "type": "process", "col": 2, "row": 5},
+    {"id": "d", "label": "Candidate findings\n(technique + category)", "type": "process", "col": 3, "row": 5},
+    {"id": "e", "label": "Dedup check\nvs vault category file", "type": "process", "col": 4, "row": 5},
+    {"id": "f", "label": "Hooks.md", "type": "output", "col": 5, "row": 0},
+    {"id": "g", "label": "Editing Tricks.md", "type": "output", "col": 5, "row": 1},
+    {"id": "h", "label": "Captions.md", "type": "output", "col": 5, "row": 2},
+    {"id": "i", "label": "Color Grading.md", "type": "output", "col": 5, "row": 3},
+    {"id": "j", "label": "Storytelling & Tone.md", "type": "output", "col": 5, "row": 4},
+    {"id": "k", "label": "Thumbnails.md", "type": "output", "col": 5, "row": 5},
+    {"id": "l", "label": "Script Writing.md", "type": "output", "col": 5, "row": 6},
+    {"id": "m", "label": "Brand Building.md", "type": "output", "col": 5, "row": 7},
+    {"id": "n", "label": "Automation Backlog.md", "type": "output", "col": 5, "row": 8},
+    {"id": "o", "label": "Rejected\n(logged only, not filed)", "type": "output", "col": 5, "row": 9},
+    {"id": "p", "label": "Video Log\n(sprint audit trail)", "type": "output", "col": 5, "row": 10},
+    {"id": "q", "label": "Adaptive & Learning audit\n(runs once per sprint)", "type": "process", "col": 6, "row": 5}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "e", "to": "f"},
+    {"from": "e", "to": "g"},
+    {"from": "e", "to": "h"},
+    {"from": "e", "to": "i"},
+    {"from": "e", "to": "j"},
+    {"from": "e", "to": "k"},
+    {"from": "e", "to": "l"},
+    {"from": "e", "to": "m"},
+    {"from": "e", "to": "n"},
+    {"from": "e", "to": "o"},
+    {"from": "b", "to": "p"},
+    {"from": "e", "to": "p"},
+    {"from": "f", "to": "q"},
+    {"from": "g", "to": "q"},
+    {"from": "h", "to": "q"},
+    {"from": "i", "to": "q"},
+    {"from": "j", "to": "q"},
+    {"from": "k", "to": "q"},
+    {"from": "l", "to": "q"},
+    {"from": "m", "to": "q"},
+    {"from": "n", "to": "q"},
+    {"from": "p", "to": "q"},
+    {"from": "q", "to": "p"}
+  ]
+}
+```
+
+`Tools/System/Scripts/specs/content-framework-video-log.json` — sprint lifecycle, embedded in `Video Log/README.md`:
+
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Sprint starts:\nniche + video sources chosen", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Video Log file created\n(frontmatter + Videos Watched)", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Council reviews each video\n(8 personas, parallel)", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Findings filed or rejected\n(appended to Filed/Rejected)", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Adaptive & Learning audit\n(once, after filing)", "type": "process", "col": 4, "row": 0},
+    {"id": "f", "label": "Sprint file complete:\nfull audit trail", "type": "output", "col": 5, "row": 0}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "e", "to": "f"}
+  ]
+}
+```
+
+The 9 category filing-flow diagrams all share the same 6-node shape (persona flags a technique → concrete example candidate → dedup check → merge/update/add/reject → filed entry or logged rejection), each illustrated with an example specific to that category.
+
+`Tools/System/Scripts/specs/content-framework-hooks.json`:
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Script Writing + Platform\nStrategist personas flag a technique", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Candidate: \"Jump-cut hook\nbefore any words spoken\"", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Check Hooks.md\nfor existing entry", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Merge / Update / Add / Reject", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Hooks.md entry\n(Status: observed)", "type": "output", "col": 4, "row": 0},
+    {"id": "f", "label": "Logged in Video Log\n(if rejected)", "type": "output", "col": 4, "row": 1}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "d", "to": "f"}
+  ]
+}
+```
+
+`Tools/System/Scripts/specs/content-framework-editing-tricks.json`:
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Video Editing persona\nflags a technique", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Candidate: \"Speed-ramp cut\non the before/after reveal\"", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Check Editing Tricks.md\nfor existing entry", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Merge / Update / Add / Reject", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Editing Tricks.md entry\n(Status: observed)", "type": "output", "col": 4, "row": 0},
+    {"id": "f", "label": "Logged in Video Log\n(if rejected)", "type": "output", "col": 4, "row": 1}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "d", "to": "f"}
+  ]
+}
+```
+
+`Tools/System/Scripts/specs/content-framework-captions.json`:
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Video Editing + Platform\nStrategist personas flag a technique", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Candidate: \"Bottom-third captions\nsynced to word timestamps\"", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Check Captions.md\nfor existing entry", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Merge / Update / Add / Reject", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Captions.md entry\n(Status: observed)", "type": "output", "col": 4, "row": 0},
+    {"id": "f", "label": "Logged in Video Log\n(if rejected)", "type": "output", "col": 4, "row": 1}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "d", "to": "f"}
+  ]
+}
+```
+
+`Tools/System/Scripts/specs/content-framework-color-grading.json`:
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Video Editing persona\nflags a technique", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Candidate: \"Warm-orange LUT\nduring the demo segment\"", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Check Color Grading.md\nfor existing entry", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Merge / Update / Add / Reject", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Color Grading.md entry\n(Status: observed)", "type": "output", "col": 4, "row": 0},
+    {"id": "f", "label": "Logged in Video Log\n(if rejected)", "type": "output", "col": 4, "row": 1}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "d", "to": "f"}
+  ]
+}
+```
+
+`Tools/System/Scripts/specs/content-framework-storytelling-tone.json`:
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Storytelling persona\nflags a technique", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Candidate: \"Problem-struggle-payoff\napplied to a stock breakdown\"", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Check Storytelling & Tone.md\nfor existing entry", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Merge / Update / Add / Reject", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Storytelling & Tone.md entry\n(Status: observed)", "type": "output", "col": 4, "row": 0},
+    {"id": "f", "label": "Logged in Video Log\n(if rejected)", "type": "output", "col": 4, "row": 1}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "d", "to": "f"}
+  ]
+}
+```
+
+`Tools/System/Scripts/specs/content-framework-thumbnails.json`:
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Thumbnail Expert persona\nflags a technique", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Candidate: \"Face-forward cover frame\nwith 3-word text overlay\"", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Check Thumbnails.md\nfor existing entry", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Merge / Update / Add / Reject", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Thumbnails.md entry\n(Status: observed)", "type": "output", "col": 4, "row": 0},
+    {"id": "f", "label": "Logged in Video Log\n(if rejected)", "type": "output", "col": 4, "row": 1}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "d", "to": "f"}
+  ]
+}
+```
+
+`Tools/System/Scripts/specs/content-framework-script-writing.json`:
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Script Writing persona\nflags a technique", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Candidate: \"CTA phrased as a question\nright after the payoff\"", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Check Script Writing.md\nfor existing entry", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Merge / Update / Add / Reject", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Script Writing.md entry\n(Status: observed)", "type": "output", "col": 4, "row": 0},
+    {"id": "f", "label": "Logged in Video Log\n(if rejected)", "type": "output", "col": 4, "row": 1}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "d", "to": "f"}
+  ]
+}
+```
+
+`Tools/System/Scripts/specs/content-framework-brand-building.json`:
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Brand Building persona\nflags a technique", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Candidate: \"Recurring catchphrase\nused as hook and outro\"", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Check Brand Building.md\nfor existing entry", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Merge / Update / Add / Reject", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Brand Building.md entry\n(Status: observed)", "type": "output", "col": 4, "row": 0},
+    {"id": "f", "label": "Logged in Video Log\n(if rejected)", "type": "output", "col": 4, "row": 1}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "d", "to": "f"}
+  ]
+}
+```
+
+`Tools/System/Scripts/specs/content-framework-automation-backlog.json`:
+```json
+{
+  "nodes": [
+    {"id": "a", "label": "Automation Engineer persona\nflags a technique", "type": "trigger", "col": 0, "row": 0},
+    {"id": "b", "label": "Candidate: \"ffmpeg LUT script\nfor consistent color grade\"", "type": "process", "col": 1, "row": 0},
+    {"id": "c", "label": "Check Automation Backlog.md\nfor existing entry", "type": "process", "col": 2, "row": 0},
+    {"id": "d", "label": "Merge / Update / Add / Reject", "type": "process", "col": 3, "row": 0},
+    {"id": "e", "label": "Automation Backlog.md entry\n(Status: idea)", "type": "output", "col": 4, "row": 0},
+    {"id": "f", "label": "Logged in Video Log\n(if rejected)", "type": "output", "col": 4, "row": 1}
+  ],
+  "edges": [
+    {"from": "a", "to": "b"},
+    {"from": "b", "to": "c"},
+    {"from": "c", "to": "d"},
+    {"from": "d", "to": "e"},
+    {"from": "d", "to": "f"}
+  ]
+}
+```
+
+- [ ] **Step 2: Generate all 11 diagrams**
+
+Run:
+```bash
+VAULT="/Users/r/Documents/Tools:skills/Tools"
+mkdir -p "$VAULT/Content Framework/Diagrams"
+for slug in content-framework-overview content-framework-video-log content-framework-hooks \
+            content-framework-editing-tricks content-framework-captions content-framework-color-grading \
+            content-framework-storytelling-tone content-framework-thumbnails content-framework-script-writing \
+            content-framework-brand-building content-framework-automation-backlog; do
+  python3 "$VAULT/System/Scripts/generate_diagram.py" \
+    "$VAULT/System/Scripts/specs/$slug.json" \
+    "$VAULT/Content Framework/Diagrams/$slug.excalidraw.md"
+done
+```
+Expected: 11 lines of `wrote /Users/r/Documents/Tools:skills/Tools/Content Framework/Diagrams/<slug>.excalidraw.md`, no errors (the script's own `validate_scene` would raise an `AssertionError` immediately if any spec's node/edge count was wrong).
+
+- [ ] **Step 3: Write `Content Framework/README.md`**
 
 ```markdown
 # Content Framework
@@ -421,6 +712,8 @@ The vault at `/Users/r/Documents/Tools:skills/Tools/` is **not** a git repo (con
 The permanent, growing knowledge base built from watching short-form videos across your niches (barbering, investing, AI/automation). Filed by the `video-niche-analyst` skill's expert council after every research sprint — not written to by hand except to correct or prune an entry.
 
 This is deliberately separate from `Catalog/` and `My Projects/` — it's not a repo catalog, it holds editing/hook/storytelling technique, not tool writeups. None of the `Indexes/*` Dataview queries read from this folder.
+
+![[content-framework-overview.excalidraw]]
 
 ## Folder structure
 
@@ -470,15 +763,17 @@ For every candidate technique the council surfaces:
 This is a periodic **research sprint** tool (e.g. weekly, a handful of videos per niche) — not something run on every video scrolled past. Running the full council on every video would compete directly with actual time spent creating content.
 ```
 
-- [ ] **Step 2: Write the 8 category files**
+- [ ] **Step 4: Write the 8 category files**
 
-Each of these gets the same minimal opening — write all 8:
+Each of these gets the same minimal opening plus its diagram embed — write all 8:
 
 `Content Framework/Hooks.md`:
 ```markdown
 # Hooks
 
 Audio and visual hook techniques (openers, pattern interrupts, cold-opens) observed across analyzed videos. See [[Content Framework/README]] for the entry schema and filing rules.
+
+![[content-framework-hooks.excalidraw]]
 ```
 
 `Content Framework/Editing Tricks.md`:
@@ -486,6 +781,8 @@ Audio and visual hook techniques (openers, pattern interrupts, cold-opens) obser
 # Editing Tricks
 
 Cut rhythm, transitions, on-screen text animation, and other splice/edit techniques observed across analyzed videos. See [[Content Framework/README]] for the entry schema and filing rules.
+
+![[content-framework-editing-tricks.excalidraw]]
 ```
 
 `Content Framework/Captions.md`:
@@ -493,6 +790,8 @@ Cut rhythm, transitions, on-screen text animation, and other splice/edit techniq
 # Captions
 
 Caption pacing, placement, and font/style choices observed across analyzed videos. See [[Content Framework/README]] for the entry schema and filing rules.
+
+![[content-framework-captions.excalidraw]]
 ```
 
 `Content Framework/Color Grading.md`:
@@ -500,6 +799,8 @@ Caption pacing, placement, and font/style choices observed across analyzed video
 # Color Grading
 
 Color grade and look treatments observed across analyzed videos. See [[Content Framework/README]] for the entry schema and filing rules.
+
+![[content-framework-color-grading.excalidraw]]
 ```
 
 `Content Framework/Storytelling & Tone.md`:
@@ -507,6 +808,8 @@ Color grade and look treatments observed across analyzed videos. See [[Content F
 # Storytelling & Tone
 
 Narrative structures, pacing of the "turn," and tone/energy choices observed across analyzed videos. See [[Content Framework/README]] for the entry schema and filing rules.
+
+![[content-framework-storytelling-tone.excalidraw]]
 ```
 
 `Content Framework/Thumbnails.md`:
@@ -514,6 +817,8 @@ Narrative structures, pacing of the "turn," and tone/energy choices observed acr
 # Thumbnails
 
 Cover-frame and thumbnail design choices observed across analyzed videos. See [[Content Framework/README]] for the entry schema and filing rules.
+
+![[content-framework-thumbnails.excalidraw]]
 ```
 
 `Content Framework/Script Writing.md`:
@@ -521,6 +826,8 @@ Cover-frame and thumbnail design choices observed across analyzed videos. See [[
 # Script Writing
 
 Hook-line wording, sentence rhythm, pattern interrupts, and CTA phrasing observed across analyzed videos. See [[Content Framework/README]] for the entry schema and filing rules.
+
+![[content-framework-script-writing.excalidraw]]
 ```
 
 `Content Framework/Brand Building.md`:
@@ -528,9 +835,11 @@ Hook-line wording, sentence rhythm, pattern interrupts, and CTA phrasing observe
 # Brand Building
 
 Recognizable-persona techniques (recurring motifs, catchphrases, personal disclosure) observed across analyzed videos. See [[Content Framework/README]] for the entry schema and filing rules.
+
+![[content-framework-brand-building.excalidraw]]
 ```
 
-- [ ] **Step 3: Write `Content Framework/Automation Backlog.md`**
+- [ ] **Step 5: Write `Content Framework/Automation Backlog.md`**
 
 This one uses a different schema (idea → prototyped → built, not observed → tested), since it tracks backend-automation ideas rather than on-camera technique:
 
@@ -538,6 +847,8 @@ This one uses a different schema (idea → prototyped → built, not observed �
 # Automation Backlog
 
 Concrete backend-automation ideas surfaced by the Automation Engineer persona while analyzing videos — a direct feed into future tool-building or n8n workflow work.
+
+![[content-framework-automation-backlog.excalidraw]]
 
 ## Entry schema
 
@@ -550,12 +861,14 @@ Concrete backend-automation ideas surfaced by the Automation Engineer persona wh
 ```
 ```
 
-- [ ] **Step 4: Write `Content Framework/Video Log/README.md`**
+- [ ] **Step 6: Write `Content Framework/Video Log/README.md`**
 
 ```markdown
 # Video Log
 
 One file per research sprint, named `YYYY-MM-DD-<niche>-sprint.md`. This is the audit trail — what was watched and what happened to each finding. The category files one level up are the distilled, permanent framework; this folder is the raw history behind them.
+
+![[content-framework-video-log.excalidraw]]
 
 ## Sprint file template
 
@@ -582,14 +895,14 @@ videos:
 ```
 ```
 
-- [ ] **Step 5: Add a link from `Home.md`**
+- [ ] **Step 7: Add a link from `Home.md`**
 
 Read `Tools/Home.md` first, then add `- [[Content Framework]] — editing/hook/storytelling technique, distilled from watching short-form video` as a new bullet in the top list, right after the existing `- [[Catalog]] — things I found and curated in` line.
 
-- [ ] **Step 6: Verify**
+- [ ] **Step 8: Verify**
 
-Run: `ls "/Users/r/Documents/Tools:skills/Tools/Content Framework/" "/Users/r/Documents/Tools:skills/Tools/Content Framework/Video Log/"`
-Expected: the 10 files/folders listed above, all present.
+Run: `ls "/Users/r/Documents/Tools:skills/Tools/Content Framework/" "/Users/r/Documents/Tools:skills/Tools/Content Framework/Video Log/" "/Users/r/Documents/Tools:skills/Tools/Content Framework/Diagrams/" | cat`
+Expected: the 10 top-level files/folders, plus 11 `.excalidraw.md` files in `Diagrams/`, all present.
 
 (No git commit — this vault has no `.git`.)
 
@@ -827,6 +1140,7 @@ git commit -m "feat: add video-niche-analyst skill with 9-persona council workfl
 
 ## Self-review notes
 
-- **Spec coverage:** frame extraction (§1) → Tasks 2-4. Council + narrow per-persona lenses (§2) → Task 6. Vault structure + entry schema (§3) → Task 5. Dedup/filing process (§4) → `council-workflow.js`'s File phase + `Content Framework/README.md`'s filing rules. Cadence + flop-sampling ask (§5) → `SKILL.md` step 1. Error handling (§6) → Task 4 step 6 (graceful degrade) + `SKILL.md`'s closing note + Task 5 step 1 (bootstrap-if-missing note). Testing (§7) → Tasks 1-4's real pytest suite plus Task 6's manual pilot-sprint validation called out in `SKILL.md`.
+- **Spec coverage:** frame extraction (§1) → Tasks 2-4. Council + narrow per-persona lenses (§2) → Task 6. Vault structure + entry schema (§3) → Task 5. Dedup/filing process (§4) → `council-workflow.js`'s File phase + `Content Framework/README.md`'s filing rules. Cadence + flop-sampling ask (§5) → `SKILL.md` step 1. Error handling (§6) → Task 4 step 6 (graceful degrade) + `SKILL.md`'s closing note (bootstrap-if-missing for any future category) + Task 5 bootstrapping all 9 category files upfront. Testing (§7) → Tasks 1-4's real pytest suite plus Task 6's manual pilot-sprint validation called out in `SKILL.md`.
+- **Diagram coverage (added per follow-up request):** every file created in Task 5 gets an Excalidraw diagram — the 11 specs were extracted from this plan and run through the real `generate_diagram.py` during plan review (not just eyeballed): all 11 produced valid output with the exact node/edge counts declared, and a separate structural check confirmed every edge's `from`/`to` references a real node id and every node `type` is one `generate_diagram.py` recognizes. Task 5 Step 2's "Expected" output is therefore verified, not assumed.
 - **Placeholder scan:** none found — every step has literal file contents or exact commands.
 - **Type consistency:** `compute_frame_timestamps(duration, ...)` (Task 2) is called by `extract_frames(media_path, out_dir, thumbnail_path=None)` (Task 3) with just `duration` — consistent. `extract_frames` and `find_downloaded_thumbnail` (Task 4) are both called from `main()` with matching signatures. `council-workflow.js`'s `args.videos[].sourceLabel/transcript/framesDir/thumbnailPath` match exactly what `SKILL.md` step 3 instructs building.
