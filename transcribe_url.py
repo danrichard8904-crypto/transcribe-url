@@ -71,7 +71,15 @@ def extract_frames(media_path, out_dir, thumbnail_path=None):
     return frame_paths
 
 
-def download_media(url, out_dir, browser=None):
+def find_downloaded_thumbnail(media_path):
+    media_path = Path(media_path)
+    for candidate in media_path.parent.glob(f"{media_path.stem}.*"):
+        if candidate != media_path and candidate.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"):
+            return candidate
+    return None
+
+
+def download_media(url, out_dir, browser=None, want_thumbnail=False):
     outtmpl = str(Path(out_dir) / "%(id)s.%(ext)s")
     opts = {
         # Some platforms (e.g. TikTok's bytevc1/h265 variants) advertise an
@@ -85,6 +93,8 @@ def download_media(url, out_dir, browser=None):
     }
     if browser:
         opts["cookiesfrombrowser"] = (browser, None, None, None)
+    if want_thumbnail:
+        opts["writethumbnail"] = True
     with YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
         return Path(ydl.prepare_filename(info))
@@ -110,6 +120,7 @@ def main():
     parser.add_argument("--lang", default=None)
     parser.add_argument("--keep", action="store_true", help="keep the downloaded media file in the current directory")
     parser.add_argument("--browser", default=None, help="read cookies from this browser (e.g. chrome) for login-walled sites like Instagram")
+    parser.add_argument("--frames", default=None, help="directory to extract sampled frames (and real thumbnail, if available) into")
     args = parser.parse_args()
 
     cache_root = os.environ.get("WHISPER_CACHE", DEFAULT_WHISPER_CACHE)
@@ -117,12 +128,23 @@ def main():
     local_path = Path(args.source).expanduser()
     if local_path.is_file():
         print(f"Transcribing local file {local_path} ...", file=sys.stderr)
+        if args.frames:
+            try:
+                extract_frames(local_path, args.frames)
+            except (subprocess.CalledProcessError, ValueError, OSError) as e:
+                print(f"Frame extraction failed: {e} — continuing with audio-only transcription", file=sys.stderr)
         transcribe_and_print(local_path, args.model, args.lang, cache_root)
         return
 
     with tempfile.TemporaryDirectory() as tmp:
         print(f"Downloading {args.source} ...", file=sys.stderr)
-        media_path = download_media(args.source, tmp, browser=args.browser)
+        media_path = download_media(args.source, tmp, browser=args.browser, want_thumbnail=bool(args.frames))
+        if args.frames:
+            try:
+                thumbnail_path = find_downloaded_thumbnail(media_path)
+                extract_frames(media_path, args.frames, thumbnail_path=thumbnail_path)
+            except (subprocess.CalledProcessError, ValueError, OSError) as e:
+                print(f"Frame extraction failed: {e} — continuing with audio-only transcription", file=sys.stderr)
         transcribe_and_print(media_path, args.model, args.lang, cache_root)
 
         if args.keep:

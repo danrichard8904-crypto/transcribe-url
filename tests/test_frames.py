@@ -44,3 +44,26 @@ def test_extract_frames_creates_expected_frame_count(tmp_path):
     for frame_path in frame_paths:
         assert frame_path.is_file()
         assert frame_path.stat().st_size > 0
+
+
+from transcribe_url import find_downloaded_thumbnail
+
+
+def test_find_downloaded_thumbnail_matches_same_stem(tmp_path):
+    media_path = tmp_path / "abc123.mp4"
+    media_path.write_bytes(b"fake video")
+    thumb_path = tmp_path / "abc123.webp"
+    thumb_path.write_bytes(b"fake thumb")
+
+    result = find_downloaded_thumbnail(media_path)
+
+    assert result == thumb_path
+
+
+def test_find_downloaded_thumbnail_returns_none_when_absent(tmp_path):
+    media_path = tmp_path / "xyz789.mp4"
+    media_path.write_bytes(b"fake video")
+
+    result = find_downloaded_thumbnail(media_path)
+
+    assert result is None

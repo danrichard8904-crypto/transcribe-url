@@ -21,6 +21,14 @@ python3 -m venv .venv
 
 Output matches the same "Timestamped" + "Full Text" format used elsewhere for transcripts.
 
+### Frame extraction
+
+Pass `--frames <dir>` to also pull sampled stills alongside the transcript — dense sampling (every 0.5s) for the first 3 seconds (the hook window), then one frame every 2 seconds after, plus the platform's real thumbnail when yt-dlp can fetch one (reliable on YouTube, best-effort on TikTok/Instagram). If frame extraction fails, transcription still completes — a warning prints to stderr instead of aborting the run.
+
+```bash
+./transcribe.sh <url> --frames ./frames
+```
+
 ## Platform notes
 
 - **YouTube** — works.
