@@ -7,6 +7,7 @@ Usage: transcribe_url.py <url-or-file> [--model base] [--lang en] [--keep]
 """
 import argparse
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -33,6 +34,41 @@ def compute_frame_timestamps(duration, dense_window=3.0, dense_step=0.5, sparse_
         timestamps.append(round(t, 2))
         t += sparse_step
     return timestamps
+
+
+
+def get_media_duration(media_path):
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1", str(media_path),
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    return float(result.stdout.strip())
+
+
+def extract_frames(media_path, out_dir, thumbnail_path=None):
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    duration = get_media_duration(media_path)
+    timestamps = compute_frame_timestamps(duration)
+    frame_paths = []
+    for i, ts in enumerate(timestamps):
+        frame_path = out_dir / f"frame_{i:03d}_{ts:.1f}s.jpg"
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-ss", str(ts), "-i", str(media_path),
+                "-frames:v", "1", "-q:v", "2", str(frame_path),
+            ],
+            capture_output=True, check=True,
+        )
+        frame_paths.append(frame_path)
+    if thumbnail_path and Path(thumbnail_path).is_file():
+        real_thumb = out_dir / f"thumbnail_real{Path(thumbnail_path).suffix}"
+        real_thumb.write_bytes(Path(thumbnail_path).read_bytes())
+        frame_paths.append(real_thumb)
+    return frame_paths
 
 
 def download_media(url, out_dir, browser=None):
