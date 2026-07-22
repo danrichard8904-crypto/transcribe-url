@@ -9,14 +9,24 @@ export const meta = {
   ],
 }
 
+// A video's framesDir/thumbnailPath are null when frame extraction failed or
+// was skipped (SKILL.md's documented graceful-degrade path) — every persona
+// prompt below must route through this instead of interpolating v.framesDir
+// directly, or a null renders as the literal string "null" in the prompt.
+function framesNote(v) {
+  return v.framesDir
+    ? `Frames are at ${v.framesDir} — view them.`
+    : "No frames were extracted for this video (frame extraction failed or was unavailable) — answer from the transcript alone, and say so explicitly wherever your answer would otherwise depend on visuals."
+}
+
 const TECHNIQUE_PERSONAS = [
   {
     key: 'editing',
-    prompt: (v) => `You are a video editor reviewing cut technique. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir} — view them.\n\nAnswer: what is the cut frequency/rhythm (does pace change at specific moments)? What transition types are used? What is the on-screen text animation style? Concrete findings only.`,
+    prompt: (v) => `You are a video editor reviewing cut technique. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\n${framesNote(v)}\n\nAnswer: what is the cut frequency/rhythm (does pace change at specific moments)? What transition types are used? What is the on-screen text animation style? Concrete findings only.`,
   },
   {
     key: 'brand',
-    prompt: (v) => `You are a personal-brand consultant. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir}.\n\nAnswer: how does the creator establish a recognizable persona across this video (recurring visual motif, catchphrase, personal disclosure)? Is it replicable without being a direct copy? Concrete findings only.`,
+    prompt: (v) => `You are a personal-brand consultant. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\n${framesNote(v)}\n\nAnswer: how does the creator establish a recognizable persona across this video (recurring visual motif, catchphrase, personal disclosure)? Is it replicable without being a direct copy? Concrete findings only.`,
   },
   {
     key: 'storytelling',
@@ -24,7 +34,7 @@ const TECHNIQUE_PERSONAS = [
   },
   {
     key: 'thumbnail',
-    prompt: (v) => `You are a thumbnail/cover-image designer. Video: ${v.sourceLabel}\n\nFrames are at ${v.framesDir}${v.thumbnailPath ? `, including a real platform thumbnail at ${v.thumbnailPath}` : ' (no real platform thumbnail was available, only extracted stills)'}.\n\nAnswer: what does the actual or likely cover frame look like — text overlay, contrast/color pop, face-forward vs. object-forward? Concrete findings only.`,
+    prompt: (v) => `You are a thumbnail/cover-image designer. Video: ${v.sourceLabel}\n\n${v.framesDir ? `Frames are at ${v.framesDir}${v.thumbnailPath ? `, including a real platform thumbnail at ${v.thumbnailPath}` : ' (no real platform thumbnail was available, only extracted stills)'}.` : "No frames or thumbnail were extracted for this video (frame extraction failed or was unavailable) — say so explicitly rather than guessing at what the cover frame looks like."}\n\nAnswer: what does the actual or likely cover frame look like — text overlay, contrast/color pop, face-forward vs. object-forward? Concrete findings only.`,
   },
   {
     key: 'script',
@@ -32,17 +42,17 @@ const TECHNIQUE_PERSONAS = [
   },
   {
     key: 'platform',
-    prompt: (v) => `You are a platform/algorithm strategist for short-form video. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir}.\n\nAnswer: is the pacing tuned for a specific platform (TikTok-fast vs. Reels-slower)? What retention tricks are used (loop structure, an open question held until later)? What is the video length and why might that length be chosen? Concrete findings only.`,
+    prompt: (v) => `You are a platform/algorithm strategist for short-form video. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\n${framesNote(v)}\n\nAnswer: is the pacing tuned for a specific platform (TikTok-fast vs. Reels-slower)? What retention tricks are used (loop structure, an open question held until later)? What is the video length and why might that length be chosen? Concrete findings only.`,
   },
   {
     key: 'automation',
-    prompt: (v) => `You are an automation engineer. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir}.\n\nAnswer: which specific technique observed in this video (editing, color, captions, thumbnail) could be templated or scripted, and how concretely (name a tool/approach, e.g. an ffmpeg LUT, a caption-style preset)? Only list things with a genuine automation angle, not generic ideas. If you propose something for the Automation Backlog category, phrase "technique" as the name of the automation idea itself (e.g. "ffmpeg LUT for consistent color grade"), not the on-camera technique it automates. Concrete findings only.`,
+    prompt: (v) => `You are an automation engineer. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\n${framesNote(v)}\n\nAnswer: which specific technique observed in this video (editing, color, captions, thumbnail) could be templated or scripted, and how concretely (name a tool/approach, e.g. an ffmpeg LUT, a caption-style preset)? Only list things with a genuine automation angle, not generic ideas. If you propose something for the Automation Backlog category, phrase "technique" as the name of the automation idea itself (e.g. "ffmpeg LUT for consistent color grade"), not the on-camera technique it automates. Concrete findings only.`,
   },
 ]
 
 const CONTENT_PERSONA = {
   key: 'content',
-  prompt: (v) => `You are a short-form content strategist. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir} — view them if useful.\n\nAnswer in 1-3 sentences: what is the single core idea/angle of this video? Does it fit an existing content pillar (barbering, investing, or AI-automation) or reveal a new content-idea angle worth banking? This is a freeform note, not a technique to catalog — it will be logged in the sprint's Video Log, not filed into a Content Framework category.`,
+  prompt: (v) => `You are a short-form content strategist. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\n${framesNote(v)}\n\nAnswer in 1-3 sentences: what is the single core idea/angle of this video? Does it fit an existing content pillar (barbering, investing, or AI-automation) or reveal a new content-idea angle worth banking? This is a freeform note, not a technique to catalog — it will be logged in the sprint's Video Log, not filed into a Content Framework category.`,
 }
 
 const FINDING_SCHEMA = {
@@ -133,6 +143,16 @@ for (const f of allFindings) {
   findingsByCategory[f.category].push(f)
 }
 
+// Video log files are named YYYY-MM-DD-<niche>-sprint.md — derive the exact
+// "First seen" provenance line here (in plain code) rather than asking each
+// filing agent to guess the niche/date, since nothing else in its prompt
+// gives it that information.
+const videoLogFilename = args.videoLogPath.split('/').pop().replace(/\.md$/, '')
+const sprintMatch = videoLogFilename.match(/^(\d{4}-\d{2}-\d{2})-(.+)-sprint$/)
+const firstSeenLine = sprintMatch
+  ? `${sprintMatch[2]} · ${sprintMatch[1]} · [[Video Log/${videoLogFilename}]]`
+  : `[[Video Log/${videoLogFilename}]]` // fallback if the filename doesn't match the expected pattern
+
 const categoryResults = await parallel(
   Object.entries(findingsByCategory).map(([category, findings]) => () => {
     const schemaNote = category === 'Automation Backlog' ? AUTOMATION_BACKLOG_SCHEMA_NOTE : STANDARD_SCHEMA_NOTE
@@ -146,6 +166,7 @@ const categoryResults = await parallel(
       `Here are ${findings.length} candidate finding(s) surfaced this sprint for THIS file only:\n${findingsText}\n\n` +
       `For EACH candidate, decide one of: merged (already covered by an existing entry — bump Frequency seen / add this source, don't duplicate), updated (a clearly better/more specific example of an existing entry — update its Description in place), added (genuinely new and non-generic — append a new entry), rejected (generic or low-value — write nothing for this one).\n\n` +
       `${schemaNote}\n\n` +
+      `For any entry you add or update, use exactly this for the "First seen" line: "${firstSeenLine}" — do not guess the niche or date yourself, use this value verbatim.\n\n` +
       `You are the only writer touching "Content Framework/${category}.md" this sprint — make ALL your edits to the file in this single pass rather than one call at a time.\n\n` +
       `Report one verdict per candidate as {technique, action, reason} — echo back each candidate's exact "technique" string verbatim so verdicts can be matched by name, not by position in the list.`,
       { label: `file:${category}`, phase: 'File', schema: CATEGORY_FILE_VERDICTS_SCHEMA }
@@ -177,7 +198,7 @@ const contentNoteLines = contentNotes.map((n) => `- ${n.video}: ${n.note}`)
 await agent(
   `Append the following lines to the "## Filed / Rejected" section of ${args.videoLogPath} (do not overwrite anything already there — add these as new lines):\n${logLines.join('\n') || '(no findings this sprint)'}\n\n` +
   (contentNoteLines.length
-    ? `Also add a new "## Content Angle Notes" section at the end of ${args.videoLogPath} (create the heading if it doesn't exist yet) with these freeform notes from the Content Creation persona — these are about whether each video fits an existing content pillar or suggests a new one, not techniques to file:\n${contentNoteLines.join('\n')}\n\n`
+    ? `Also add a new "## Content Angle Notes" section immediately before the "## Adaptive & Learning notes" heading in ${args.videoLogPath} (create the Content Angle Notes heading if it doesn't exist yet; the sprint template always has Adaptive & Learning notes as its last section, and that should stay last) with these freeform notes from the Content Creation persona — these are about whether each video fits an existing content pillar or suggests a new one, not techniques to file:\n${contentNoteLines.join('\n')}\n\n`
     : '') +
   `You are the only agent writing to this file this sprint — make all of these appends in one pass.`,
   { label: 'video-log-append', phase: 'Log' }
