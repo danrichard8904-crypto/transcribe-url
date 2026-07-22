@@ -87,10 +87,11 @@ const CATEGORY_FILE_VERDICTS_SCHEMA = {
       items: {
         type: 'object',
         properties: {
+          technique: { type: 'string' },
           action: { type: 'string', enum: ['merged', 'updated', 'added', 'rejected'] },
           reason: { type: 'string' },
         },
-        required: ['action', 'reason'],
+        required: ['technique', 'action', 'reason'],
       },
     },
   },
@@ -146,15 +147,22 @@ const categoryResults = await parallel(
       `For EACH candidate, decide one of: merged (already covered by an existing entry — bump Frequency seen / add this source, don't duplicate), updated (a clearly better/more specific example of an existing entry — update its Description in place), added (genuinely new and non-generic — append a new entry), rejected (generic or low-value — write nothing for this one).\n\n` +
       `${schemaNote}\n\n` +
       `You are the only writer touching "Content Framework/${category}.md" this sprint — make ALL your edits to the file in this single pass rather than one call at a time.\n\n` +
-      `Report one verdict per candidate, in the same order given above, as {action, reason}.`,
+      `Report one verdict per candidate as {technique, action, reason} — echo back each candidate's exact "technique" string verbatim so verdicts can be matched by name, not by position in the list.`,
       { label: `file:${category}`, phase: 'File', schema: CATEGORY_FILE_VERDICTS_SCHEMA }
-    ).then((r) => ({
-      category,
-      filed: findings.map((f, i) => ({
-        ...f,
-        verdict: (r && r.verdicts && r.verdicts[i]) || { action: 'unknown', reason: 'filing agent returned no result for this candidate' },
-      })),
-    }))
+    ).then((r) => {
+      // Match by technique name, not array position — a filing agent that
+      // returns a short or reordered verdicts array (schema allows it even
+      // though the prompt asks for one-per-candidate) would otherwise pair
+      // the wrong verdict with the wrong finding.
+      const verdictsByTechnique = new Map((r && r.verdicts ? r.verdicts : []).map((v) => [v.technique, v]))
+      return {
+        category,
+        filed: findings.map((f) => ({
+          ...f,
+          verdict: verdictsByTechnique.get(f.technique) || { action: 'unknown', reason: 'filing agent returned no matching verdict for this candidate' },
+        })),
+      }
+    })
   })
 )
 
