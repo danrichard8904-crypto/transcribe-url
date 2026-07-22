@@ -12,7 +12,7 @@ This is a periodic **research sprint** tool — run it on a handful of videos at
 
 ## When invoked
 
-1. **Ask for the batch**, if not already given: niche name, and 2 or more video sources (URLs and/or local file paths — e.g. screen-recorded Instagram clips). Also ask: "Any underperforming examples in this niche worth including for contrast?" — a batch built only from standout videos skews toward "what winners do" with no signal on what losers do differently.
+1. **Ask for the batch**, if not already given: niche name, and 2 or more video sources (URLs and/or local file paths — e.g. screen-recorded Instagram clips). Also ask: "Any underperforming examples in this niche worth including for contrast?" — a batch built only from standout videos skews toward "what winners do" with no signal on what losers do differently. If given exactly 1 video, or if the Workflow tool can't be invoked for this run, run single-pass instead — one Claude reasoning through all 9 personas' questions itself in one message — and say explicitly in the output "single-pass mode — lower rigor than full council" rather than silently downgrading without saying so.
 
 2. **Set up the sprint's Video Log file.** Pick today's date and a niche slug, e.g. `2026-07-22-barbering-sprint`. Read `Content Framework/Video Log/README.md` in the vault for the template, then write `Content Framework/Video Log/2026-07-22-barbering-sprint.md` with the frontmatter and "Videos Watched" section filled in, and empty "## Filed / Rejected" / "## Adaptive & Learning notes" headers ready for the workflow to append under.
 
@@ -22,6 +22,10 @@ This is a periodic **research sprint** tool — run it on a handful of videos at
    cd "/Users/r/Documents/content generation/transcribe-url"
    ./transcribe.sh "<source>" --frames "/tmp/video-niche-analyst/<slug>/<video-id>" --model base
    ```
+
+   If `transcribe.sh` fails for a given source (bad URL, unsupported platform, network error), skip that video, note in the Video Log's "Videos Watched" section that it was skipped and why, and continue with the remaining videos rather than aborting the whole sprint.
+
+   The transcript is printed to stdout starting at the `## Transcript` heading; the `Downloading ...` / `Transcribing with Whisper ...` progress lines are printed to stderr — when capturing output via the Bash tool, use only the stdout content (from `## Transcript` onward) as the `transcript` field, not any merged stderr progress text.
 
    Build a `videos` array, one entry per source:
    ```json
@@ -38,7 +42,7 @@ This is a periodic **research sprint** tool — run it on a handful of videos at
    ```
    This runs in the background — you'll be notified when it completes. Do not poll for it.
 
-5. **When the workflow finishes**, report a short summary to the user: how many findings were filed vs. rejected, and the Adaptive & Learning audit's headline points (it's already been written into the Video Log file — don't repeat it in full, just the gist).
+5. **When the workflow finishes**, report a short summary to the user: how many findings were filed vs. rejected, any content-angle notes (which videos suggested a new content-pillar angle worth banking, if any), and the Adaptive & Learning audit's headline points (it's already been written into the Video Log file — don't repeat it in full, just the gist). If the Adaptive & Learning audit didn't complete (e.g. the workflow result's `audit` field is empty/missing), tell the user the audit couldn't be completed this sprint rather than fabricating a summary of it.
 
 ## Notes for whoever invokes this
 

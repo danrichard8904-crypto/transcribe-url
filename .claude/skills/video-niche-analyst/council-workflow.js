@@ -1,18 +1,15 @@
 export const meta = {
   name: 'video-niche-analyst-council',
-  description: 'Run the 8-persona expert council over a batch of short-form videos, dedup-file findings into the vault, then run one whole-sprint Adaptive & Learning audit.',
+  description: 'Run the 8-persona expert council over a batch of short-form videos, dedup-file findings into the vault by category (one writer per category file to avoid races), then run one whole-sprint Adaptive & Learning audit.',
   phases: [
     { title: 'Council', detail: '8 personas review each video in parallel' },
-    { title: 'File', detail: 'each finding is deduped against the vault and filed or rejected' },
+    { title: 'File', detail: 'findings grouped by category; one agent per category writes that category file exactly once' },
+    { title: 'Log', detail: 'all filed/rejected lines and content-angle notes appended to the video log in a single write' },
     { title: 'Audit', detail: 'Adaptive & Learning reviews the whole sprint once' },
   ],
 }
 
-const PERSONAS = [
-  {
-    key: 'content',
-    prompt: (v) => `You are a short-form content strategist. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir} — view them if useful.\n\nAnswer: what is the single core idea/angle of this video? Does it fit an existing content pillar (barbering, investing, or AI-automation) or reveal a new content-idea angle worth banking? Concrete findings only, no generic advice.`,
-  },
+const TECHNIQUE_PERSONAS = [
   {
     key: 'editing',
     prompt: (v) => `You are a video editor reviewing cut technique. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir} — view them.\n\nAnswer: what is the cut frequency/rhythm (does pace change at specific moments)? What transition types are used? What is the on-screen text animation style? Concrete findings only.`,
@@ -39,9 +36,14 @@ const PERSONAS = [
   },
   {
     key: 'automation',
-    prompt: (v) => `You are an automation engineer. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir}.\n\nAnswer: which specific technique observed in this video (editing, color, captions, thumbnail) could be templated or scripted, and how concretely (name a tool/approach, e.g. an ffmpeg LUT, a caption-style preset)? Only list things with a genuine automation angle, not generic ideas. Concrete findings only.`,
+    prompt: (v) => `You are an automation engineer. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir}.\n\nAnswer: which specific technique observed in this video (editing, color, captions, thumbnail) could be templated or scripted, and how concretely (name a tool/approach, e.g. an ffmpeg LUT, a caption-style preset)? Only list things with a genuine automation angle, not generic ideas. If you propose something for the Automation Backlog category, phrase "technique" as the name of the automation idea itself (e.g. "ffmpeg LUT for consistent color grade"), not the on-camera technique it automates. Concrete findings only.`,
   },
 ]
+
+const CONTENT_PERSONA = {
+  key: 'content',
+  prompt: (v) => `You are a short-form content strategist. Video: ${v.sourceLabel}\n\nTranscript:\n${v.transcript}\n\nFrames are at ${v.framesDir} — view them if useful.\n\nAnswer in 1-3 sentences: what is the single core idea/angle of this video? Does it fit an existing content pillar (barbering, investing, or AI-automation) or reveal a new content-idea angle worth banking? This is a freeform note, not a technique to catalog — it will be logged in the sprint's Video Log, not filed into a Content Framework category.`,
+}
 
 const FINDING_SCHEMA = {
   type: 'object',
@@ -71,62 +73,116 @@ const FINDING_SCHEMA = {
   required: ['findings'],
 }
 
-const FILE_VERDICT_SCHEMA = {
+const CONTENT_NOTE_SCHEMA = {
+  type: 'object',
+  properties: { note: { type: 'string' } },
+  required: ['note'],
+}
+
+const CATEGORY_FILE_VERDICTS_SCHEMA = {
   type: 'object',
   properties: {
-    action: { type: 'string', enum: ['merged', 'updated', 'added', 'rejected'] },
-    reason: { type: 'string' },
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['merged', 'updated', 'added', 'rejected'] },
+          reason: { type: 'string' },
+        },
+        required: ['action', 'reason'],
+      },
+    },
   },
-  required: ['action', 'reason'],
+  required: ['verdicts'],
 }
 
-function buildFilePrompt(finding) {
-  return (
-    `Vault path: ${args.vaultPath}. Video log file: ${args.videoLogPath}.\n\n` +
-    `Read "Content Framework/${finding.category}.md" if it exists.\n\n` +
-    `Candidate finding from ${finding.video} (${finding.persona} persona): "${finding.technique}" — ${finding.description}` +
-    (finding.when_to_use ? ` When to use: ${finding.when_to_use}.` : '') +
-    (finding.automation_potential ? ` Automation potential: ${finding.automation_potential}.` : '') +
-    `\n\nDecide one of:\n` +
-    `(a) merged — already covered by an existing entry: bump its "Frequency seen" and add this source, do not duplicate.\n` +
-    `(b) updated — a clearly better/more specific example of an existing entry: update that entry's Description in place.\n` +
-    `(c) added — genuinely new and non-generic: append a new "###" section using the fixed schema (Status: observed, First seen, Frequency seen: 1, Description, When to use, Automation potential).\n` +
-    `(d) rejected — generic or low-value: write nothing to the category file.\n\n` +
-    `Whichever you chose, also append one line to the "## Filed / Rejected" section of ${args.videoLogPath}: "- <technique> (<category>): <action> — <reason>".\n\n` +
-    `Report which action you took and why.`
-  )
-}
+const AUTOMATION_BACKLOG_SCHEMA_NOTE = 'Automation Backlog.md uses a DIFFERENT entry schema than the other 8 category files: "### <name>" then "- Status: idea | prototyped | built", "- First seen: <niche> · <date> · [[Video Log/<sprint file>]]", "- What it automates: <the manual step this replaces>", "- Approach: <concrete tool/technique>". Do NOT use Status: observed/tested or the Description/When to use/Automation potential fields for this file — those belong to the other 8 category files only.'
+const STANDARD_SCHEMA_NOTE = 'Use this schema for a new entry: "### <name>" then "- Status: observed", "- First seen: <niche> · <date> · [[Video Log/<sprint file>]]", "- Frequency seen: 1", "- Description: <what it is>", "- When to use: <context>", "- Automation potential: <none | scriptable (idea) | templated (idea)>".'
 
-// Pipeline (not parallel-then-parallel) so a video's findings start filing
-// immediately while other videos are still being reviewed by the council —
-// filing one finding never needs any other video's results, so a barrier
-// here would only waste wall-clock.
-const perVideoFiled = await pipeline(
+// Council: for each video, 7 technique personas + 1 content-note persona run in
+// parallel. Pipeline (not a barrier) so one video's results are ready for
+// filing while other videos are still being reviewed.
+const perVideoResults = await pipeline(
   args.videos,
-  (video) => parallel(
-    PERSONAS.map((p) => () =>
+  (video) => parallel([
+    ...TECHNIQUE_PERSONAS.map((p) => () =>
       agent(p.prompt(video), { label: `${p.key}:${video.sourceLabel}`, phase: 'Council', schema: FINDING_SCHEMA })
         .then((r) => (r ? r.findings.map((f) => ({ ...f, persona: p.key, video: video.sourceLabel })) : []))
-    )
-  ).then((arrays) => arrays.flat()),
-  (findings) => parallel(
-    findings.map((finding) => () =>
-      agent(buildFilePrompt(finding), { label: `file:${finding.technique}`, phase: 'File', schema: FILE_VERDICT_SCHEMA })
-        .then((verdict) => ({ ...finding, verdict }))
-    )
-  )
+    ),
+    () => agent(CONTENT_PERSONA.prompt(video), { label: `content:${video.sourceLabel}`, phase: 'Council', schema: CONTENT_NOTE_SCHEMA })
+      .then((r) => ({ video: video.sourceLabel, note: r ? r.note : null })),
+  ]).then((results) => ({
+    findings: results.slice(0, -1).flat(),
+    contentNote: results[results.length - 1],
+  }))
 )
-const filed = perVideoFiled.filter(Boolean).flat().filter(Boolean)
-log(`${filed.length} findings filed/rejected across ${args.videos.length} videos`)
+
+const allFindings = perVideoResults.flatMap((r) => r.findings)
+const contentNotes = perVideoResults.map((r) => r.contentNote).filter((n) => n && n.note)
+log(`${allFindings.length} candidate findings and ${contentNotes.length} content-angle notes from ${args.videos.length} videos`)
+
+// File: group findings by category so exactly ONE agent writes each category
+// file this sprint (parallel ACROSS categories is safe — different files —
+// but never two writers to the same file, which is what caused the race).
+phase('File')
+const findingsByCategory = {}
+for (const f of allFindings) {
+  if (!findingsByCategory[f.category]) findingsByCategory[f.category] = []
+  findingsByCategory[f.category].push(f)
+}
+
+const categoryResults = await parallel(
+  Object.entries(findingsByCategory).map(([category, findings]) => () => {
+    const schemaNote = category === 'Automation Backlog' ? AUTOMATION_BACKLOG_SCHEMA_NOTE : STANDARD_SCHEMA_NOTE
+    const findingsText = findings.map((f, i) =>
+      `${i + 1}. From ${f.video} (${f.persona} persona): "${f.technique}" — ${f.description}` +
+      (f.when_to_use ? ` When to use: ${f.when_to_use}.` : '') +
+      (f.automation_potential ? ` Automation potential: ${f.automation_potential}.` : '')
+    ).join('\n')
+    return agent(
+      `Vault path: ${args.vaultPath}. Read "Content Framework/${category}.md".\n\n` +
+      `Here are ${findings.length} candidate finding(s) surfaced this sprint for THIS file only:\n${findingsText}\n\n` +
+      `For EACH candidate, decide one of: merged (already covered by an existing entry — bump Frequency seen / add this source, don't duplicate), updated (a clearly better/more specific example of an existing entry — update its Description in place), added (genuinely new and non-generic — append a new entry), rejected (generic or low-value — write nothing for this one).\n\n` +
+      `${schemaNote}\n\n` +
+      `You are the only writer touching "Content Framework/${category}.md" this sprint — make ALL your edits to the file in this single pass rather than one call at a time.\n\n` +
+      `Report one verdict per candidate, in the same order given above, as {action, reason}.`,
+      { label: `file:${category}`, phase: 'File', schema: CATEGORY_FILE_VERDICTS_SCHEMA }
+    ).then((r) => ({
+      category,
+      filed: findings.map((f, i) => ({
+        ...f,
+        verdict: (r && r.verdicts && r.verdicts[i]) || { action: 'unknown', reason: 'filing agent returned no result for this candidate' },
+      })),
+    }))
+  })
+)
+
+const filed = categoryResults.flatMap((r) => r.filed)
+log(`${filed.length} findings filed/rejected across ${args.videos.length} videos, ${categoryResults.length} categories touched`)
+
+// Log: a single agent appends everything to the video log, so there is only
+// ever one writer touching that shared file this sprint.
+phase('Log')
+const logLines = filed.map((f) => `- ${f.technique} (${f.category}): ${f.verdict.action} — ${f.verdict.reason}`)
+const contentNoteLines = contentNotes.map((n) => `- ${n.video}: ${n.note}`)
+await agent(
+  `Append the following lines to the "## Filed / Rejected" section of ${args.videoLogPath} (do not overwrite anything already there — add these as new lines):\n${logLines.join('\n') || '(no findings this sprint)'}\n\n` +
+  (contentNoteLines.length
+    ? `Also add a new "## Content Angle Notes" section at the end of ${args.videoLogPath} (create the heading if it doesn't exist yet) with these freeform notes from the Content Creation persona — these are about whether each video fits an existing content pillar or suggests a new one, not techniques to file:\n${contentNoteLines.join('\n')}\n\n`
+    : '') +
+  `You are the only agent writing to this file this sprint — make all of these appends in one pass.`,
+  { label: 'video-log-append', phase: 'Log' }
+)
 
 phase('Audit')
-const filedSummary = filed.map((f) => ({ technique: f.technique, category: f.category, action: f.verdict?.action }))
+const filedSummary = filed.map((f) => ({ technique: f.technique, category: f.category, action: f.verdict.action }))
 const audit = await agent(
   `Vault path: ${args.vaultPath}. This sprint just filed: ${JSON.stringify(filedSummary)}.\n\n` +
   `Read the affected "Content Framework/*.md" category files and the sprint's video log at ${args.videoLogPath}.\n\n` +
-  `Flag: stale or redundant entries, categories that need restructuring, and whether the 8 council personas' questions need updating based on what's been filed across sprints so far.\n\n` +
+  `Flag: stale or redundant entries, categories that need restructuring, and whether the council personas' questions need updating based on what's been filed across sprints so far.\n\n` +
   `Write your findings directly into the "## Adaptive & Learning notes" section at the bottom of ${args.videoLogPath} (append, don't overwrite anything above it).`,
   { label: 'adaptive-learning', phase: 'Audit' }
 )
 
-return { filed, audit }
+return { filed, contentNotes, audit }
